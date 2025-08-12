@@ -147,11 +147,17 @@ The tool includes a 2-second delay between queries to respect Shodan's API rate 
 
 ## Test Drive Astra Linux
 
-Download Astra for Desktop, Server, Mobile, and Embedded:
+Download Astra for Desktop, Server, Mobile, and Embedded
 
 * https://astralinux.ru/os/
 * https://dl.astralinux.ru/astra/stable/2.12_x86-64/iso/
 * https://dl.astralinux.ru/astra/frozen/
+
+## Search Notes
+
+Use Shodan to search for astra, specifically OpenSSH service
+
+* https://www.shodan.io/search/facet?query=product%3Aopenssh&facet=version
 
 
 ## Next Steps
