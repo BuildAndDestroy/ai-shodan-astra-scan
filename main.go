@@ -26,7 +26,18 @@ func main() {
 
 	// Multiple search queries for Astra Linux
 	queries := []string{
-		"10+deb9u6astra6",                                  // Current query - specific package version
+		"10+deb9u6astra6",                                  // specific package version
+		"deb10u1astra6se11",                                // specific package version
+		"deb10u1astra8se8+ci3",                             // specific package version
+		"10+deb9u6astra6",                                  // specific package version
+		"deb10u1astra6se9+ci1",                             // specific package version
+		"deb10u1astra8se5",                                 // specific package version
+		"deb10u1astra6se14",                                // specific package version
+		"deb10u1astra6se10",                                // specific package version
+		"10+deb9u6astra6se5",                               // specific package version
+		"10+deb9u6astra6se5+b1",                            // specific package version
+		"deb10u1astra8se7",                                 // specific package version
+		"deb10u1astra8se4+b1",                              // specific package version
 		"ssh \"Astra Linux\"",                              // SSH banner containing Astra Linux
 		"ssh banner:\"astra\"",                             // SSH banner with astra keyword
 		"ssh banner:\"AstraLinux\"",                        // SSH banner with AstraLinux keyword

@@ -145,6 +145,15 @@ The tool includes a 2-second delay between queries to respect Shodan's API rate 
 - Implementing exponential backoff
 - Monitoring your API quota usage
 
+## Test Drive Astra Linux
+
+Download Astra for Desktop, Server, Mobile, and Embedded:
+
+* https://astralinux.ru/os/
+* https://dl.astralinux.ru/astra/stable/2.12_x86-64/iso/
+* https://dl.astralinux.ru/astra/frozen/
+
+
 ## Next Steps
 
 The structured JSON output is designed for AI analysis. Each file contains:
