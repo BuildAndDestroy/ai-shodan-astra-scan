@@ -19,5 +19,8 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifi
 # Copy binary from build stage
 COPY --from=builder /build/astra-scanner /astra-scanner
 
+# Create a working directory for output
+WORKDIR /app
+
 # Run the binary
 ENTRYPOINT ["/astra-scanner"]
