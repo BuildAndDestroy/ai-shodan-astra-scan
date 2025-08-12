@@ -29,7 +29,6 @@ func main() {
 		"10+deb9u6astra6",                                  // specific package version
 		"deb10u1astra6se11",                                // specific package version
 		"deb10u1astra8se8+ci3",                             // specific package version
-		"10+deb9u6astra6",                                  // specific package version
 		"deb10u1astra6se9+ci1",                             // specific package version
 		"deb10u1astra8se5",                                 // specific package version
 		"deb10u1astra6se14",                                // specific package version
