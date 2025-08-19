@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astra Linux Threat Geo Mapper</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <link rel="stylesheet" href="astra_geo_mapper.css" />
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌍 Astra Linux Threat Geo Mapper</h1>
+            <p>Visualize Astra Linux systems detected by Shodan across the globe</p>
+        </div>
+
+        <div class="controls">
+            <div class="input-section">
+                <h3>📊 JSON Data Input</h3>
+                <textarea id="jsonInput" placeholder='Paste your geo JSON data here...
+
+Example format:
+[
+  {
+    "ip": "5.141.96.34",
+    "country": "Russian Federation", 
+    "city": "Uray",
+    "latitude": 60.13044,
+    "longitude": 64.78896,
+    "port": 22,
+    "ssh_info": "Product: OpenSSH, Version: 7.4p1...",
+    "timestamp": "2025-08-12T22:10:31.501991"
+  }
+]'></textarea>
+                <div class="button-group">
+                    <button onclick="processData()">🗺️ Generate Map</button>
+                    <button onclick="loadSampleData()">📋 Load Sample</button>
+                    <button class="clear-btn" onclick="clearAll()">🗑️ Clear All</button>
+                </div>
+                <div id="status"></div>
+            </div>
+
+            <div class="stats-section">
+                <h3>📈 Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalHosts">0</div>
+                        <div class="stat-label">Total Hosts</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="uniqueCountries">0</div>
+                        <div class="stat-label">Countries</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="uniquePorts">0</div>
+                        <div class="stat-label">Unique Ports</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="riskScore">0</div>
+                        <div class="stat-label">Risk Score</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="map"></div>
+        
+        <div class="legend">
+            <h4>🎯 Threat Levels</h4>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff4757;"></div>
+                <span>Critical (Multiple ports/services)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffa502;"></div>
+                <span>High (Non-standard SSH ports)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #2ed573;"></div>
+                <span>Medium (Standard SSH on 22)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #3742fa;"></div>
+                <span>Low (HTTPS/Web services)</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        let map;
+        let markersLayer;
+        let currentData = [];
+
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: true,
+                scrollWheelZoom: true
+            }).setView([55.7558, 37.6173], 3);
+
+            // Dark theme tile layer
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            markersLayer = L.layerGroup().addTo(map);
+        }
+
+        function showStatus(message, isError = false) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="${isError ? 'error' : 'success'}">${message}</div>`;
+            setTimeout(() => statusDiv.innerHTML = '', 5000);
+        }
+
+        function getThreatLevel(data) {
+            let score = 0;
+            
+            // Port-based scoring
+            if (data.port === 22) score += 1;      // Standard SSH
+            else if (data.port === 2222) score += 2; // Non-standard SSH
+            else if ([80, 443, 8080, 8443].includes(data.port)) score += 1; // Web services
+            else score += 3; // Other ports are more suspicious
+
+            // SSH info analysis
+            if (data.ssh_info && data.ssh_info.includes('OpenSSH')) {
+                if (data.ssh_info.includes('astra')) score += 2;
+                if (data.ssh_info.includes('deb9u6astra6')) score += 1;
+            }
+
+            // Geographic risk (simplified)
+            const highRiskCountries = ['Russian Federation', 'China', 'North Korea'];
+            if (highRiskCountries.includes(data.country)) score += 1;
+
+            return Math.min(score, 4); // Cap at 4
+        }
+
+        function getMarkerColor(threatLevel) {
+            const colors = {
+                1: '#3742fa',  // Low - Blue
+                2: '#2ed573',  // Medium - Green  
+                3: '#ffa502',  // High - Orange
+                4: '#ff4757'   // Critical - Red
+            };
+            return colors[threatLevel] || '#747d8c';
+        }
+
+        function createPopupContent(data) {
+            const threatLevel = getThreatLevel(data);
+            const threatLabels = ['', 'Low', 'Medium', 'High', 'Critical'];
+            
+            return `
+                <div style="min-width: 250px; font-family: 'Segoe UI', sans-serif;">
+                    <h3 style="color: ${getMarkerColor(threatLevel)}; margin: 0 0 10px 0;">
+                        🎯 ${data.ip}
+                    </h3>
+                    <div style="margin: 5px 0;"><strong>📍 Location:</strong> ${data.city}, ${data.country}</div>
+                    <div style="margin: 5px 0;"><strong>🔌 Port:</strong> ${data.port}</div>
+                    <div style="margin: 5px 0;"><strong>🔐 SSH Info:</strong><br/>${data.ssh_info}</div>
+                    <div style="margin: 5px 0;"><strong>📅 Timestamp:</strong> ${new Date(data.timestamp).toLocaleString()}</div>
+                    <div style="margin: 10px 0; padding: 5px; background: ${getMarkerColor(threatLevel)}20; border-radius: 5px;">
+                        <strong style="color: ${getMarkerColor(threatLevel)};">⚠️ Threat Level: ${threatLabels[threatLevel]}</strong>
+                    </div>
+                </div>
+            `;
+        }
+
+        function processData() {
+            const input = document.getElementById('jsonInput').value.trim();
+            
+            if (!input) {
+                showStatus('❌ Please paste JSON data first', true);
+                return;
+            }
+
+            try {
+                currentData = JSON.parse(input);
+                
+                if (!Array.isArray(currentData)) {
+                    throw new Error('Data must be an array');
+                }
+
+                markersLayer.clearLayers();
+                
+                let validPoints = 0;
+                const countries = new Set();
+                const ports = new Set();
+                let totalRiskScore = 0;
+
+                currentData.forEach(point => {
+                    if (point.latitude && point.longitude) {
+                        const threatLevel = getThreatLevel(point);
+                        totalRiskScore += threatLevel;
+                        
+                        const marker = L.circleMarker([point.latitude, point.longitude], {
+                            color: '#ffffff',
+                            fillColor: getMarkerColor(threatLevel),
+                            fillOpacity: 0.8,
+                            weight: 2,
+                            radius: 8 + (threatLevel * 2)
+                        });
+
+                        marker.bindPopup(createPopupContent(point));
+                        markersLayer.addLayer(marker);
+                        
+                        validPoints++;
+                        countries.add(point.country);
+                        ports.add(point.port);
+                    }
+                });
+
+                // Update statistics
+                document.getElementById('totalHosts').textContent = validPoints;
+                document.getElementById('uniqueCountries').textContent = countries.size;
+                document.getElementById('uniquePorts').textContent = ports.size;
+                document.getElementById('riskScore').textContent = Math.round((totalRiskScore / validPoints) * 100) / 100;
+
+                if (validPoints > 0) {
+                    // Fit map to show all markers
+                    const group = new L.featureGroup(markersLayer.getLayers());
+                    map.fitBounds(group.getBounds().pad(0.1));
+                    
+                    showStatus(`✅ Successfully mapped ${validPoints} Astra Linux systems across ${countries.size} countries`);
+                } else {
+                    showStatus('⚠️ No valid coordinate data found in JSON', true);
+                }
+
+            } catch (error) {
+                showStatus(`❌ Error parsing JSON: ${error.message}`, true);
+            }
+        }
+
+        function loadSampleData() {
+            const sampleData = `[
+  {
+    "ip": "5.141.96.34",
+    "country": "Russian Federation",
+    "city": "Uray", 
+    "latitude": 60.13044,
+    "longitude": 64.78896,
+    "port": 22,
+    "ssh_info": "Product: OpenSSH, Version: 7.4p1 Debian 10+deb9u6astra6, Type: ssh-rsa",
+    "timestamp": "2025-08-12T22:10:31.501991"
+  },
+  {
+    "ip": "86.102.168.35",
+    "country": "Russian Federation", 
+    "city": "Vladivostok",
+    "latitude": 43.10562,
+    "longitude": 131.87353,
+    "port": 22,
+    "ssh_info": "Product: OpenSSH, Version: 7.4p1 Debian 10+deb9u6astra6, Type: ssh-rsa",
+    "timestamp": "2025-08-12T22:09:46.563813"
+  },
+  {
+    "ip": "89.223.126.175",
+    "country": "Russian Federation",
+    "city": "Saint Petersburg", 
+    "latitude": 59.93863,
+    "longitude": 30.31413,
+    "port": 22,
+    "ssh_info": "Product: OpenSSH, Version: 7.4p1 Debian 10+deb9u6astra6, Type: ssh-rsa",
+    "timestamp": "2025-08-12T22:09:15.276973"
+  }
+]`;
+            document.getElementById('jsonInput').value = sampleData;
+            showStatus('📋 Sample data loaded - click "Generate Map" to visualize');
+        }
+
+        function clearAll() {
+            document.getElementById('jsonInput').value = '';
+            if (markersLayer) markersLayer.clearLayers();
+            
+            document.getElementById('totalHosts').textContent = '0';
+            document.getElementById('uniqueCountries').textContent = '0'; 
+            document.getElementById('uniquePorts').textContent = '0';
+            document.getElementById('riskScore').textContent = '0';
+            
+            currentData = [];
+            showStatus('🗑️ All data cleared');
+        }
+
+        // Initialize map when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+        });
+    </script>
+</body>
+</html>
