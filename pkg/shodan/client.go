@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -49,29 +50,71 @@ func SearchShodan(apiKey, query string) (*ShodanResponse, error) {
 		Timeout: 30 * time.Second,
 	}
 
-	url := fmt.Sprintf("https://api.shodan.io/shodan/host/search?key=%s&query=%s", apiKey, query)
+	var allMatches []ShodanMatch
+	var totalResults int
+	page := 1
+	resultsPerPage := 100 // Shodan returns max 100 per page
 
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
+	for {
+		// Construct URL with pagination
+		baseURL := "https://api.shodan.io/shodan/host/search"
+		params := url.Values{}
+		params.Add("key", apiKey)
+		params.Add("query", query)
+		params.Add("page", fmt.Sprintf("%d", page))
+
+		requestURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
+
+		resp, err := client.Get(requestURL)
+		if err != nil {
+			return nil, fmt.Errorf("HTTP request failed on page %d: %w", page, err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("API request failed with status %d on page %d: %s", resp.StatusCode, page, string(body))
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body on page %d: %w", page, err)
+		}
+
+		var pageResult ShodanResponse
+		err = json.Unmarshal(body, &pageResult)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse JSON response on page %d: %w", page, err)
+		}
+
+		// Store total from first page
+		if page == 1 {
+			totalResults = pageResult.Total
+			fmt.Printf("  Total results available: %d (fetching all pages...)\n", totalResults)
+		}
+
+		// Append matches from this page
+		allMatches = append(allMatches, pageResult.Matches...)
+
+		fmt.Printf("  Fetched page %d: %d results (total so far: %d/%d)\n",
+			page, len(pageResult.Matches), len(allMatches), totalResults)
+
+		// Check if we've retrieved all results or hit API limits
+		if len(pageResult.Matches) < resultsPerPage || len(allMatches) >= totalResults {
+			if len(allMatches) < totalResults {
+				fmt.Printf("  Note: Retrieved %d of %d results (account limit reached)\n", len(allMatches), totalResults)
+			}
+			break
+		}
+
+		// Move to next page with rate limiting
+		page++
+		time.Sleep(1 * time.Second) // Be respectful to the API
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var result ShodanResponse
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
-	}
-
-	return &result, nil
+	return &ShodanResponse{
+		Matches: allMatches,
+		Total:   totalResults,
+	}, nil
 }
