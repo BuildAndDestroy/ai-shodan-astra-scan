@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "astra-scanner": {
+      "command": "/home/YOURUSER/development/git/ai-shodan-astra-scan/.venv/bin/python",
+      "args": [
+        "/home/YOURUSER/development/git/ai-shodan-astra-scan/mcp_server.py"
+      ],
+      "env": {
+        "SHODAN_API_KEY": "YOUR_SHODAN_API_KEY_HERE"
+      }
+    }
+  }
+}
