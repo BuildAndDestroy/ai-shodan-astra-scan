@@ -7,7 +7,8 @@ This directory contains an MCP (Model Context Protocol) server that provides too
 1. Python 3.8 or higher
 2. Docker installed and running
 3. The `astra-scanner:latest` Docker image built (see main README)
-4. MCP Python package installed
+4. grep -r 'YOURUSER' * # change all of these to your user
+5. MCP Python package installed
 
 ## Installation
 
@@ -85,9 +86,9 @@ To use this MCP server with Cursor, you need to add it to Cursor's MCP configura
 {
   "mcpServers": {
     "astra-scanner": {
-      "command": "/home/codonnell/development/git/ai-shodan-astra-scan/.venv/bin/python",
+      "command": "/home/YOURUSER/development/git/ai-shodan-astra-scan/.venv/bin/python",
       "args": [
-        "/home/codonnell/development/git/ai-shodan-astra-scan/mcp_server.py"
+        "/home/YOURUSER/development/git/ai-shodan-astra-scan/mcp_server.py"
       ],
       "env": {
         "SHODAN_API_KEY": "your_actual_shodan_api_key_here"
@@ -102,7 +103,7 @@ To use this MCP server with Cursor, you need to add it to Cursor's MCP configura
 ### Configuration Details
 
 - **command**: Path to Python interpreter
-  - With virtual environment: `/home/codonnell/development/git/ai-shodan-astra-scan/.venv/bin/python`
+  - With virtual environment: `/home/YOURUSER/development/git/ai-shodan-astra-scan/.venv/bin/python`
   - Without virtual environment: `python3` (or full path like `/usr/bin/python3`)
 - **args**: Path to the `mcp_server.py` file
 - **env**: Environment variables. **Recommended:** Add your `SHODAN_API_KEY` here:
@@ -190,6 +191,6 @@ Once configured in Cursor, you can use the tools through natural language:
 
 ## Notes
 
-- The scan results directory is hardcoded to `/home/codonnell/development/git/ai-shodan-astra-scan/tmp/shodan_results`
+- The scan results directory is hardcoded to `/home/YOURUSER/development/git/ai-shodan-astra-scan/tmp/shodan_results`
 - To change this, modify the `SCAN_RESULTS_DIR` constant in `mcp_server.py`
 - The Docker volume mount path is also hardcoded and may need adjustment for your system

@@ -14,34 +14,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-try:
-    from mcp.server import Server
-    from mcp.server.stdio import stdio_server
-    from mcp.types import (
-        Tool,
-        TextContent,
-        ImageContent,
-        EmbeddedResource,
-        LoggingLevel,
-        McpError,
-        ErrorCode,
-    )
-except ImportError:
-    # Fallback for different MCP package structure
-    try:
-        from mcp import Server, stdio_server
-        from mcp.types import Tool, TextContent, McpError, ErrorCode
-    except ImportError:
-        raise ImportError(
-            "MCP package not found. Install with: pip install mcp\n"
-            "Or try: pip install anthropic-mcp"
-        )
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import (
+    Tool,
+    TextContent,
+    ImageContent,
+    EmbeddedResource,
+    LoggingLevel,
+    JSONRPCError,
+    INVALID_PARAMS,
+    METHOD_NOT_FOUND,
+    INTERNAL_ERROR,
+)
 
 
 # Configuration
-SCAN_RESULTS_DIR = Path("/home/codonnell/development/git/ai-shodan-astra-scan/tmp/shodan_results")
+SCAN_RESULTS_DIR = Path("/home/YOURUSER/development/git/ai-shodan-astra-scan/tmp/shodan_results")
 DOCKER_IMAGE = "astra-scanner:latest"
-DOCKER_VOLUME_MOUNT = "/home/codonnell/development/git/ai-shodan-astra-scan/tmp/:/app/"
+DOCKER_VOLUME_MOUNT = "/home/YOURUSER/development/git/ai-shodan-astra-scan/tmp/:/app/"
 
 
 class AstraScannerServer:
@@ -195,8 +186,8 @@ class AstraScannerServer:
             elif name == "search_results":
                 return await self._search_results(arguments)
             else:
-                raise McpError(
-                    ErrorCode.METHOD_NOT_FOUND,
+                raise JSONRPCError(
+                    METHOD_NOT_FOUND,
                     f"Unknown tool: {name}"
                 )
 
@@ -210,8 +201,8 @@ class AstraScannerServer:
         if not api_key:
             api_key = os.getenv("SHODAN_API_KEY")
         if not api_key:
-            raise McpError(
-                ErrorCode.INVALID_PARAMS,
+            raise JSONRPCError(
+                INVALID_PARAMS,
                 "shodan_api_key is required. Provide it as a parameter, set SHODAN_API_KEY environment variable, or add it to MCP config env section."
             )
 
@@ -253,8 +244,8 @@ class AstraScannerServer:
             )]
             
         except Exception as e:
-            raise McpError(
-                ErrorCode.INTERNAL_ERROR,
+            raise JSONRPCError(
+                INTERNAL_ERROR,
                 f"Failed to run scan: {str(e)}"
             )
 
@@ -308,7 +299,7 @@ class AstraScannerServer:
         """Get summary for a specific scan."""
         timestamp = args.get("timestamp")
         if not timestamp:
-            raise McpError(ErrorCode.INVALID_PARAMS, "timestamp is required")
+            raise JSONRPCError(INVALID_PARAMS, "timestamp is required")
 
         summary_file = SCAN_RESULTS_DIR / f"scan_summary_{timestamp}.json"
         if not summary_file.exists():
@@ -324,8 +315,8 @@ class AstraScannerServer:
             result = json.dumps(data, indent=2)
             return [TextContent(type="text", text=result)]
         except Exception as e:
-            raise McpError(
-                ErrorCode.INTERNAL_ERROR,
+            raise JSONRPCError(
+                INTERNAL_ERROR,
                 f"Failed to read summary: {str(e)}"
             )
 
@@ -357,8 +348,8 @@ class AstraScannerServer:
             result = json.dumps(data, indent=2)
             return [TextContent(type="text", text=result)]
         except Exception as e:
-            raise McpError(
-                ErrorCode.INTERNAL_ERROR,
+            raise JSONRPCError(
+                INTERNAL_ERROR,
                 f"Failed to read results: {str(e)}"
             )
 
@@ -393,8 +384,8 @@ class AstraScannerServer:
             result = json.dumps(data, indent=2)
             return [TextContent(type="text", text=result)]
         except Exception as e:
-            raise McpError(
-                ErrorCode.INTERNAL_ERROR,
+            raise JSONRPCError(
+                INTERNAL_ERROR,
                 f"Failed to read geo data: {str(e)}"
             )
 
@@ -423,8 +414,8 @@ class AstraScannerServer:
             result += json.dumps(data, indent=2)
             return [TextContent(type="text", text=result)]
         except Exception as e:
-            raise McpError(
-                ErrorCode.INTERNAL_ERROR,
+            raise JSONRPCError(
+                INTERNAL_ERROR,
                 f"Failed to read latest scan: {str(e)}"
             )
 
