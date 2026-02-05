@@ -4,7 +4,7 @@ Search for Astra Linux systems on the internet using multiple Shodan queries and
 
 ## Features
 
-- **Multiple Query Support**: Runs 12 different search queries targeting Astra Linux systems
+- **Multiple Query Support**: Runs 23 different search queries targeting Astra Linux systems
 - **Comprehensive Data Collection**: Searches for SSH banners, package versions, and domain references
 - **Structured Output**: Saves results in JSON format ready for AI analysis
 - **Geo Mapping**: Converts results to geo-mapping format for visualization
@@ -16,17 +16,28 @@ Search for Astra Linux systems on the internet using multiple Shodan queries and
 The tool runs these queries to find Astra Linux systems:
 
 1. `10+deb9u6astra6` - Specific package version signatures
-2. `ssh "Astra Linux"` - SSH banners containing "Astra Linux"
-3. `ssh banner:"astra"` - SSH banners with "astra" keyword
-4. `ssh banner:"AstraLinux"` - SSH banners with "AstraLinux"
-5. `"Astra Linux" port:22` - Port 22 services mentioning Astra Linux
-6. `"astra" "debian" port:22` - Astra with Debian on SSH port
-7. `"orel" "astra"` - Orel keyword with astra (Russian Astra variant)
-8. `product:"OpenSSH" "astra"` - OpenSSH services with astra references
-9. `"SE Linux" "astra"` - SELinux with astra (Astra uses SELinux)
-10. `"Red OS" OR "Astra Linux" OR "astra linux"` - Multiple Astra variants
-11. `"astra.ru"` - References to Astra domain
-12. `"astralinux.ru"` - References to AstraLinux domain
+2. `deb9u6astra*` - Specific package version with wildcard
+3. `deb10u1astra6se11` - Specific package version signatures
+4. `deb10u1astra8se8+ci3` - Specific package version signatures
+5. `deb10u1astra6se9+ci1` - Specific package version signatures
+6. `deb10u1astra8se5` - Specific package version signatures
+7. `deb10u1astra6se14` - Specific package version signatures
+8. `deb10u1astra6se10` - Specific package version signatures
+9. `10+deb9u6astra6se5` - Specific package version signatures
+10. `10+deb9u6astra6se5+b1` - Specific package version signatures
+11. `deb10u1astra8se7` - Specific package version signatures
+12. `deb10u1astra8se4+b1` - Specific package version signatures
+13. `ssh "Astra Linux"` - SSH banners containing "Astra Linux"
+14. `ssh banner:"astra"` - SSH banners with "astra" keyword
+15. `ssh banner:"AstraLinux"` - SSH banners with "AstraLinux"
+16. `"Astra Linux" port:22` - Port 22 services mentioning Astra Linux
+17. `"astra" "debian" port:22` - Astra with Debian on SSH port
+18. `"orel" "astra"` - Orel keyword with astra (Russian Astra variant)
+19. `product:"OpenSSH" "astra"` - OpenSSH services with astra references
+20. `"SE Linux" "astra"` - SELinux with astra (Astra uses SELinux)
+21. `"Red OS" OR "Astra Linux" OR "astra linux"` - Multiple Astra variants
+22. `"astra.ru"` - References to Astra domain
+23. `"astralinux.ru"` - References to AstraLinux domain
 
 ## Output Structure
 

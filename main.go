@@ -27,6 +27,8 @@ func main() {
 	// Multiple search queries for Astra Linux
 	queries := []string{
 		"10+deb9u6astra6",                                  // specific package version
+		"deb9u6astra*",                                     // specific package version with wildcard
+		"deb10u1astra*",                                    // specific package version with wildcard
 		"deb10u1astra6se11",                                // specific package version
 		"deb10u1astra8se8+ci3",                             // specific package version
 		"deb10u1astra6se9+ci1",                             // specific package version
