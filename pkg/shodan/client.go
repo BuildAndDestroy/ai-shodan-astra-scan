@@ -2,6 +2,7 @@ package shodan
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -67,17 +68,17 @@ func SearchShodan(apiKey, query string) (*ShodanResponse, error) {
 
 		resp, err := client.Get(requestURL)
 		if err != nil {
-			return nil, fmt.Errorf("HTTP request failed on page %d: %w", page, err)
+			return nil, fmt.Errorf("HTTP request failed on page %d: %w", page, redactKey(err))
 		}
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, fmt.Errorf("API request failed with status %d on page %d: %s", resp.StatusCode, page, string(body))
 		}
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body on page %d: %w", page, err)
 		}
@@ -117,4 +118,71 @@ func SearchShodan(apiKey, query string) (*ShodanResponse, error) {
 		Matches: allMatches,
 		Total:   totalResults,
 	}, nil
+}
+
+// FacetValue is one bucket of a Shodan facet breakdown
+type FacetValue struct {
+	Count int `json:"count"`
+	Value any `json:"value"`
+}
+
+// CountResponse represents the response from the Shodan count endpoint
+type CountResponse struct {
+	Total  int                     `json:"total"`
+	Facets map[string][]FacetValue `json:"facets"`
+}
+
+// CountShodan returns the total number of results for a query along with
+// optional facet breakdowns (e.g. "version:20,port:10"). The count endpoint
+// does not consume query credits.
+func CountShodan(apiKey, query, facets string) (*CountResponse, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	params := url.Values{}
+	params.Add("key", apiKey)
+	params.Add("query", query)
+	if facets != "" {
+		params.Add("facets", facets)
+	}
+
+	resp, err := client.Get("https://api.shodan.io/shodan/host/count?" + params.Encode())
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request failed: %w", redactKey(err))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result CountResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
+	}
+	return &result, nil
+}
+
+// redactKey strips the API key from errors returned by net/http. A *url.Error
+// embeds the full request URL, which includes the "key" query parameter, so
+// printing it unredacted would leak the Shodan API key into logs.
+func redactKey(err error) error {
+	var uerr *url.Error
+	if !errors.As(err, &uerr) {
+		return err
+	}
+	if u, perr := url.Parse(uerr.URL); perr == nil {
+		q := u.Query()
+		if q.Has("key") {
+			q.Set("key", "REDACTED")
+			u.RawQuery = q.Encode()
+		}
+		uerr.URL = u.String()
+	} else {
+		uerr.URL = "<redacted>"
+	}
+	return uerr
 }

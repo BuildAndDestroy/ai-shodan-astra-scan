@@ -1,3 +1,5 @@
 module anthropic-shodan-scan
 
-go 1.23.1
+go 1.26.0
+
+toolchain go1.27.4

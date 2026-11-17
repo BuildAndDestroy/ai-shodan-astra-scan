@@ -1,9 +1,11 @@
 package main
 
 import (
+	"anthropic-shodan-scan/pkg/envfile"
 	"anthropic-shodan-scan/pkg/geomapper"
 	"anthropic-shodan-scan/pkg/report"
 	"anthropic-shodan-scan/pkg/shodan"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,14 +13,24 @@ import (
 )
 
 func main() {
+	countOnly := flag.Bool("count", false, "only report result counts and version facets per query (uses no query credits)")
+	facets := flag.String("facets", "version:15", "facets to request in -count mode (e.g. \"version:15,port:10\")")
+	envPath := flag.String("env", ".env", "path to a .env file containing SHODAN_API_KEY")
+	flag.Parse()
+
+	if err := envfile.Load(*envPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not read %s: %v\n", *envPath, err)
+	}
+
 	apiKey := os.Getenv("SHODAN_API_KEY")
 	if apiKey == "" {
-		fmt.Fprintf(os.Stderr, "Error: SHODAN_API_KEY environment variable is required\n")
+		fmt.Fprintf(os.Stderr, "Error: SHODAN_API_KEY is required (set it in the environment or in %s)\n", *envPath)
 		os.Exit(1)
 	}
 
 	// Create output directory
 	outputDir := "shodan_results"
+	// #nosec G301 -- results dir must stay traversable on the host when created by the root container via a bind mount
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
 		os.Exit(1)
@@ -50,6 +62,26 @@ func main() {
 		"\"Red OS\" OR \"Astra Linux\" OR \"astra linux\"", // Multiple Astra variants
 		"\"astra.ru\"",                                     // Astra domain references
 		"\"astralinux.ru\"",                                // AstraLinux domain
+
+		// --- SSH builds not covered above ---
+		"deb9u4astra*", // Smolensk 1.6 ISO ships OpenSSH_7.4p1 Debian-10+deb9u4astra6se3 (0 hits as of 2026-11; sentinel)
+
+		// --- Non-SSH signals (validated with -count / banner review, 2026-11) ---
+		// Shodan strips punctuation, so "#astra"/"+astra"/"(Astra)" all degrade to
+		// plain "astra" (~26k noisy hits). Match whole tokens instead.
+		"astralinux",          // Apache "(AstraLinux)" 2.4.52/2.4.57/2.4.62 (SE 1.7/1.8) + BIND "…-AstraLinux-2.12.45"
+		"\"AstraLinuxCE\"",    // CE 2.12.46 Apache Server header: "Apache/2.4.46 (AstraLinuxCE)"
+		"\"AstraLinuxSE\"",    // SE Apache Server header: "Apache/2.4.46 (AstraLinuxSE)"
+		"\"Astra Linux\"",     // Postfix "(Astra Linux/GNU)", node exporter os-release, rsync mirrors
+		"\"Astra Linux/GNU\"", // Postfix smtpd banner: "ESMTP Postfix (Astra Linux/GNU)"
+		"product:\"Prometheus Node Exporter\" \"astra\"",      // node_os_info: exact version_id + "#astraNN+ciNN" kernel
+		"\"9.11.3-1ubuntu1.15+ci202105041610+astra1-Debian\"", // CE 2.12.4x BIND version.bind response
+		"os:\"Astra Linux\"", // Shodan OS fingerprint field (cheap to test)
+	}
+
+	if *countOnly {
+		runCounts(apiKey, queries, *facets)
+		return
 	}
 
 	// Store all results for combined analysis
@@ -138,4 +170,25 @@ func main() {
 	fmt.Printf("- Geo mapping data: %s\n", filepath.Base(geoPath))
 	fmt.Printf("- Scan summary: %s\n", filepath.Base(summaryPath))
 	fmt.Printf("\nReady for AI analysis!\n")
+}
+
+// runCounts reports the total and facet breakdown for each query using the
+// Shodan count endpoint, which does not consume query credits.
+func runCounts(apiKey string, queries []string, facets string) {
+	for i, query := range queries {
+		res, err := shodan.CountShodan(apiKey, query, facets)
+		if err != nil {
+			fmt.Printf("%2d. %-55s ERROR: %v\n", i+1, query, err)
+		} else {
+			fmt.Printf("%2d. %-55s total=%d\n", i+1, query, res.Total)
+			for name, buckets := range res.Facets {
+				for _, b := range buckets {
+					fmt.Printf("      %s: %-50v %d\n", name, b.Value, b.Count)
+				}
+			}
+		}
+		if i < len(queries)-1 {
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
