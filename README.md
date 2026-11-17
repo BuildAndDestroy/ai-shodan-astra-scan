@@ -4,40 +4,47 @@ Search for Astra Linux systems on the internet using multiple Shodan queries and
 
 ## Features
 
-- **Multiple Query Support**: Runs 23 different search queries targeting Astra Linux systems
-- **Comprehensive Data Collection**: Searches for SSH banners, package versions, and domain references
+- **Multiple Query Support**: Runs 33 Shodan queries targeting Astra Linux across SSH, HTTP, SMTP, DNS and Prometheus exporters
+- **Free Query Validation**: `-count` mode reports per-query totals and version breakdowns via Shodan's count endpoint (no query credits)
+- **`.env` Support**: API key is read from a gitignored `.env` file (environment variables take precedence)
 - **Structured Output**: Saves results in JSON format ready for AI analysis
 - **Geo Mapping**: Converts results to geo-mapping format for visualization
 - **Rate Limited**: Respects Shodan API limits with built-in delays
-- **Summary Reports**: Generates analysis-ready summary statistics
+- **Agent Playbook**: [`prompts/astra-recon-agent.md`](prompts/astra-recon-agent.md) lets an AI agent run the tooling and fan out analysis
+
+## Astra Linux Fingerprints
+
+Signals were verified against Astra ISOs (Orel/CE 2.12.43, CE 2.12.46, Smolensk 1.6) and live Shodan data (Nov 2026).
+Shodan strips punctuation when searching, so `"#astra"`, `"+astra"` and `"(Astra)"` all collapse to the noisy token `astra`. Query whole tokens instead.
+
+| Service | Banner example | Query | Notes |
+|---|---|---|---|
+| SSH | `OpenSSH_7.4p1 Debian-10+deb9u6astra6` | `deb9u6astra*` | Orel/CE 2.12 and SE 1.6 (`astra6seN`) |
+| SSH | `OpenSSH_8.4p1 Debian-2~deb10u1astra6se14` | `deb10u1astra*` | SE 1.7 era (`astra6seN`) |
+| SSH | `OpenSSH_9.6p1 Debian-2~deb10u1astra8se8+ci3` | `deb10u1astra*` | newer SE builds (`astra8seN`) |
+| SSH | `OpenSSH_7.4p1 Debian-10+deb9u4astra6se3` | `deb9u4astra*` | Smolensk 1.6 ISO build |
+| HTTP | `Server: Apache/2.4.46 (AstraLinuxCE)` | `"AstraLinuxCE"` | CE 2.12.46 |
+| HTTP | `Server: Apache/2.4.46 (AstraLinuxSE)` | `"AstraLinuxSE"` | SE |
+| HTTP | `Server: Apache/2.4.62 (AstraLinux)` | `astralinux` | 2.4.52/2.4.57/2.4.62, newer SE releases |
+| SMTP | `ESMTP Postfix (Astra Linux/GNU)` | `"Astra Linux/GNU"` | |
+| DNS | `9.11.3-1ubuntu1.15+ci202105041610+astra1-Debian` | exact string | CE 2.12.4x BIND `version.bind` |
+| Node Exporter | `pretty_name: Astra Linux (Orel 2.12.46)`, kernel `#astra1+ci3 SMP` | `product:"Prometheus Node Exporter" "astra"` | exact point release |
+
+Checked and found **not** useful: Samba, Exim, Dovecot, vsftpd, CUPS, NTP, MariaDB and Squid report stock Debian strings. SNMP `sysDescr` hits for `astra` are hostnames, not Astra kernels. No `deb11u*astra*` or `deb12u*astra*` SSH builds were observed.
 
 ## Search Queries
 
-The tool runs these queries to find Astra Linux systems:
+See the `queries` slice in [`main.go`](main.go) for the authoritative list with per-query comments. In summary:
 
-1. `10+deb9u6astra6` - Specific package version signatures
-2. `deb9u6astra*` - Specific package version with wildcard
-3. `deb10u1astra6se11` - Specific package version signatures
-4. `deb10u1astra8se8+ci3` - Specific package version signatures
-5. `deb10u1astra6se9+ci1` - Specific package version signatures
-6. `deb10u1astra8se5` - Specific package version signatures
-7. `deb10u1astra6se14` - Specific package version signatures
-8. `deb10u1astra6se10` - Specific package version signatures
-9. `10+deb9u6astra6se5` - Specific package version signatures
-10. `10+deb9u6astra6se5+b1` - Specific package version signatures
-11. `deb10u1astra8se7` - Specific package version signatures
-12. `deb10u1astra8se4+b1` - Specific package version signatures
-13. `ssh "Astra Linux"` - SSH banners containing "Astra Linux"
-14. `ssh banner:"astra"` - SSH banners with "astra" keyword
-15. `ssh banner:"AstraLinux"` - SSH banners with "AstraLinux"
-16. `"Astra Linux" port:22` - Port 22 services mentioning Astra Linux
-17. `"astra" "debian" port:22` - Astra with Debian on SSH port
-18. `"orel" "astra"` - Orel keyword with astra (Russian Astra variant)
-19. `product:"OpenSSH" "astra"` - OpenSSH services with astra references
-20. `"SE Linux" "astra"` - SELinux with astra (Astra uses SELinux)
-21. `"Red OS" OR "Astra Linux" OR "astra linux"` - Multiple Astra variants
-22. `"astra.ru"` - References to Astra domain
-23. `"astralinux.ru"` - References to AstraLinux domain
+- **SSH package versions**: `deb9u6astra*`, `deb10u1astra*`, `deb9u4astra*`, plus pinned builds (`deb10u1astra8se8+ci3`, `10+deb9u6astra6se5`, ...)
+- **HTTP**: `astralinux`, `"AstraLinuxCE"`, `"AstraLinuxSE"`
+- **SMTP**: `"Astra Linux/GNU"`, `"Astra Linux"`
+- **DNS**: Astra BIND `version.bind` string
+- **Prometheus Node Exporter**: `product:"Prometheus Node Exporter" "astra"`
+- **Shodan OS field**: `os:"Astra Linux"`
+- **Legacy keyword queries** (`ssh "Astra Linux"`, `banner:` etc.), which currently return 0 hits
+
+Run `go run . -count` to see which queries are live and the version spread behind each one.
 
 ## Output Structure
 
@@ -56,9 +63,26 @@ docker build -t astra-scanner .
 
 ## Run
 
+### API Key
+
+```bash
+cp .env.example .env
+chmod 600 .env
+# edit .env and set SHODAN_API_KEY=...
+```
+
+`.env` is gitignored and excluded from the Docker build context via `.dockerignore`.
+
 ### Basic Usage
 ```bash
-docker run --rm -it -e SHODAN_API_KEY=YOURAPIKEYFORSHODAN astra-scanner:latest
+docker run --rm -it --env-file .env astra-scanner:latest
+```
+
+### Validate Queries (no query credits)
+```bash
+go run . -count                               # totals + top 15 versions per query
+go run . -count -facets "version:30,port:5"   # wider breakdown
+docker run --rm -it --env-file .env astra-scanner:latest -count
 ```
 
 ### Save Results to Host Directory
@@ -75,8 +99,7 @@ docker run --rm -it \
 
 ### Local Development
 ```bash
-# Set environment variable
-export SHODAN_API_KEY=your_shodan_api_key_here
+# Uses .env automatically (or: export SHODAN_API_KEY=...)
 
 # Run directly
 go run main.go
@@ -147,6 +170,20 @@ go run main.go
   }
 }
 ```
+
+## Security Scanning
+
+The `Security` workflow runs on every push and PR to `main`, weekly, and on demand:
+
+| Job | Tool | Scope |
+|---|---|---|
+| CodeQL | `github/codeql-action` (`security-and-quality`) | Go, Python, GitHub Actions SAST |
+| gosec | `securego/gosec` | Go SAST |
+| govulncheck | `golang.org/x/vuln` | Go stdlib and module CVEs (reachability-aware) |
+| Bandit + pip-audit | PyCQA / PyPA | MCP server SAST and dependency CVEs |
+| Gitleaks | `gitleaks/gitleaks-action` | Secrets in git history |
+
+Dependabot keeps Go modules, pip, GitHub Actions and the Docker base image up to date.
 
 ## API Rate Limiting
 

@@ -28,6 +28,7 @@ func SaveJSON(data interface{}, filePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
+	// #nosec G306 -- results must stay readable on the host when written by the root container via a bind mount
 	err = os.WriteFile(filePath, jsonData, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
